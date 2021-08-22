@@ -16,7 +16,7 @@ class Entity():
 class Data():
     def __init__(self, root_dir, image_name):
         self.image_name = image_name
-        self.image_path = os.path.join(root_dir, "JPEGImages", image_name + ".jpg")
+        self.image_path = os.path.join(root_dir, "JPEGImages", image_name + ".PNG")
         self.annotation_path = os.path.join(root_dir, "Annotations", image_name + ".xml")
         self.annotations = self.load_masks()
 
@@ -30,9 +30,9 @@ class Data():
             difficult = int(obj.findChildren('difficult')[0].contents[0])
             truncated = int(obj.findChildren('truncated')[0].contents[0])
             bbox = obj.findChildren('bndbox')[0]
-            xmin = int(bbox.findChildren('xmin')[0].contents[0])
-            ymin = int(bbox.findChildren('ymin')[0].contents[0])
-            xmax = int(bbox.findChildren('xmax')[0].contents[0])
-            ymax = int(bbox.findChildren('ymax')[0].contents[0])
+            xmin = int(float(bbox.findChildren('xmin')[0].contents[0]))
+            ymin = int(float(bbox.findChildren('ymin')[0].contents[0]))
+            xmax = int(float(bbox.findChildren('xmax')[0].contents[0]))
+            ymax = int(float(bbox.findChildren('ymax')[0].contents[0]))
             annotations.append(Entity(obj_name, xmin, xmax, ymin, ymax, difficult, truncated))
         return annotations

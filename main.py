@@ -40,24 +40,27 @@ def main(args):
     image_list = get_image_list(set_dir, args.type + ".txt")
     total_images = len(image_list)
 
-    index = random.randint(0, total_images)
+    # index = random.randint(0, total_images)
+    index = 0
     while True:
+        index = index + 1
         image_data = Data(args.root_dir, image_list[index])
+        print(image_data.image_path)
         image = process_image(image_data)
         if args.save_images:
             cv2.imwrite(os.path.join(args.save_dir, image_list[index] + ".jpg"), image)
-        cv2.imshow('image', image)
-        k = chr(cv2.waitKey())
-        if k == 'd':  # next
-            index = index + 1 if index != total_images - 1 else 0
-        elif k == 'a':
-            index = index - 1 if index != 0 else total_images - 1
-        elif k == 's':
-            index = random.randint(0, total_images)
-        elif k == 'q':
-            cv2.destroyAllWindows()
-            cv2.waitKey(1)
-            break
+        # cv2.imshow('image', image)
+        # k = chr(cv2.waitKey())
+        # if k == 'd':  # next
+        #     index = index + 1 if index != total_images - 1 else 0
+        # elif k == 'a':
+        #     index = index - 1 if index != 0 else total_images - 1
+        # elif k == 's':
+        #     index = random.randint(0, total_images)
+        # elif k == 'q':
+        #     cv2.destroyAllWindows()
+        #     cv2.waitKey(1)
+        #     break
 
 
 if __name__ == '__main__':

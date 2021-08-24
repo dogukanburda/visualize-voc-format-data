@@ -8,7 +8,8 @@ import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--root_dir", type=str, default="./task_pressmachineoperator")
-parser.add_argument("--type", type=str, default="train", help="train|val|trainval|test")
+parser.add_argument("--type", type=str, default="default", help="train|val|trainval|test")
+parser.add_argument("--logo_dir", type=str, default="./stroma_logo.png")
 parser.add_argument("--random_seed", type=int, default=100)
 parser.add_argument("--save_images", type=bool, default=True)
 parser.add_argument("--save_dir", type=str, default="output")
@@ -63,6 +64,36 @@ def process_image(image_data):
     return image
 
 
+
+def logo_resize(background_image, foreground_image):
+    """
+    Returns a matrix of same size with background image with logo on the top left corner
+    TODO: Add other location options
+    """
+
+    # Resize logo to 1/9th of height and 1/16th of length
+    new_x, new_y = background_image.shape[1]//9,background_image.shape[0]//16
+    foreground_image = cv2.resize(foreground_image, (new_x, new_y), interpolation = cv2.INTER_AREA)
+
+    # Take differences of each indices
+    x, y, z = tuple(map(lambda x, y: x - y, background_image.shape, foreground_image.shape))
+    # Expand the logo matrix to match background resolution
+    foreground_image = cv2.copyMakeBorder(src = foreground_image, top=15, bottom=x-15, left=10, right=y-10, borderType=cv2.BORDER_CONSTANT,value=[0,0,0])
+    return foreground_image
+
+def blend(background_image, foreground_image, add_alpha_layer = True):
+    if add_alpha_layer:
+        alpha = np.full((1080,1920),255.0) # Fully opaque 4.th layer (alpha) for BGR frames --> BGRA
+        background_image = np.dstack((background_image,alpha)) # Add the opacity layer to background image
+                                                                       # background_image.shape --> (1080, 1920, 4)
+    
+    # Blend images with 'normal' mode 
+    # Opacity 1.0 and matrix dtype as uint8
+    background_image = blend_modes.normal(background_image, foreground_image, 1.0).astype(np.uint8)
+
+    # Return BGRA format (x,y,4)
+    return background_image
+
 def main(args):
     index = 0
     image_list = get_image_list(set_dir, args.type + ".txt")
@@ -71,57 +102,32 @@ def main(args):
     image = process_image(image_data)
     frame_width = image.shape[1]
     frame_height = image.shape[0]
-    fourcc = cv2.VideoWriter_fourcc(*'MP4V')  # mp4 encoding
-    # index = random.randint(0, total_images)
-    out = cv2.VideoWriter('outpy_30fps.mp4',fourcc, 30, (frame_width,frame_height))
+    frame_layers = image.shape[2]  
     
-
-    # Import foreground image
-    # 1920x1080 transparent frame with logo on top-left corner
-    foreground_img_float = cv2.imread('stroma_logo_expanded.png',-1).astype(float)
-
-    # Foreground frame is generated with;
-    # foreground_img = cv2.copyMakeBorder(src = resized, top=0, bottom=1005, left=0, right=1620, borderType=cv2.BORDER_CONSTANT,value=[0,0,0])
-
-
-
-    # Blend images
-    opacity = 1.0  # The opacity of the foreground that is blended onto the background is 70 %.
-    alpha = np.full((1080,1920),255.0) # Fully opaque 4.th layer (alpha) for BGR frames --> BGRA
+    # if frame is not BGRA format add Alpha channel
+    if frame_layers != 4:
+        add_alpha_layer = True
+    
+    # Adjust MP4 codec
+    fourcc = cv2.VideoWriter_fourcc(*'MP4V')
+    
+    out = cv2.VideoWriter('top_left_logo_30fps.mp4',fourcc, 30, (frame_width,frame_height))
+    
+    # Read specified logo
+    foreground_img_float = cv2.imread(args.logo_dir,-1).astype(float)
+    # Create logo frame for blending process
+    foreground_img_float = logo_resize(image, foreground_img_float)
+ 
 
     while index != total_images:
         image_data = Data(args.root_dir, image_list[index])
         print(image_data.image_path)
         background_img_float = process_image(image_data)
-        # if args.save_images:
-        #     cv2.imwrite(os.path.join(args.save_dir, image_list[index] + ".jpg"), image)
-
-        # b_channel, g_channel, r_channel = cv2.split(image)
-        # alpha_channel = np.ones(b_channel.shape, dtype=b_channel.dtype) * 50
-        # img_BGRA = cv2.merge((b_channel, g_channel, r_channel, alpha_channel))
-        # cv2.imwrite('temp.png',img_BGRA)
-        #background_img_float = cv2.imread('temp.png',cv2.IMREAD_UNCHANGED).astype(float)
-        background_img_float = np.dstack((background_img_float,alpha)) # Add the opacity layer to background image
-                                                                       # background_img_float.shape --> (1080, 1920, 4)
-        blended_img_float = blend_modes.normal(background_img_float, foreground_img_float, opacity) # Blend images with 'normal' mode with opacity 1.0
-        #blended_img = np.uint8(blended_img_float)
-        blended_img_uint8 = blended_img_float.astype(np.uint8)  # Convert image to OpenCV native display format
+        blended_img_uint8 = blend(background_img_float, foreground_img_float, add_alpha_layer)
 
         out.write(blended_img_uint8[:,:,:3]) # Write frames with 3 layers [:,:,:3] --> (1080, 1920, 3) BGR format
         index = index + 1
-        print(index)
-        # cv2.imshow('image', image)
-        # k = chr(cv2.waitKey())
-        # if k == 'd':  # next
-        #     index = index + 1 if index != total_images - 1 else 0
-        # elif k == 'a':
-        #     index = index - 1 if index != 0 else total_images - 1
-        # elif k == 's':
-        #     index = random.randint(0, total_images)
-        # elif k == 'q':
-        #     cv2.destroyAllWindows()
-        #     cv2.waitKey(1)
-        #     break
+
     out.release()
 
 

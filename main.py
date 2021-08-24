@@ -22,6 +22,8 @@ img_dir = os.path.join(args.root_dir, 'JPEGImages')
 ann_dir = os.path.join(args.root_dir, 'Annotations')
 set_dir = os.path.join(args.root_dir, 'ImageSets', 'Main')
 
+alpha = np.array([])
+
 
 def draw_border(img, pt1, pt2, color, thickness, r, d):
     x1,y1 = pt1
@@ -101,15 +103,17 @@ def logo_frame(background_image, foreground_image, location = "TOP_LEFT"):
         foreground_image = cv2.copyMakeBorder(src = foreground_image, top=x-15, bottom=15, left=y-10, right=10, borderType=cv2.BORDER_CONSTANT,value=[0,0,0])
     return foreground_image
 
-def blend(background_image, foreground_image, add_alpha_layer = True):
-    if add_alpha_layer:
-        alpha = np.full((1080,1920),255.0) # Fully opaque 4.th layer (alpha) for BGR frames --> BGRA
+def blend(background_image, foreground_image):
+    global alpha
+    if alpha.size == 0:
+        alpha = np.full((background_image.shape[0],background_image.shape[1]),255.0) # Fully opaque 4.th layer (alpha) for BGR frames --> BGRA
+
+    if background_image.shape[2] != 4:
         background_image = np.dstack((background_image,alpha)) # Add the opacity layer to background image
-                                                                       # background_image.shape --> (1080, 1920, 4)
-    
+                                                                   # background_image.shape --> (1080, 1920, 4)
     # Blend images with 'normal' mode 
     # Opacity 1.0 and matrix dtype as uint8
-    background_image = blend_modes.normal(background_image, foreground_image, 1.0).astype(np.uint8)
+    background_image = blend_modes.normal(background_image, foreground_image, 1.0)
 
     # Return BGRA format (x,y,4)
     return background_image
@@ -120,32 +124,29 @@ def main(args):
     total_images = len(image_list)
     image_data = Data(args.root_dir, image_list[index])
     image = process_image(image_data)
-    frame_width = image.shape[1]
-    frame_height = image.shape[0]
-    frame_layers = image.shape[2]  
-    
-    # if frame is not BGRA format add Alpha channel
-    if frame_layers != 4:
-        add_alpha_layer = True
-    
+
     # Adjust MP4 codec
-    fourcc = cv2.VideoWriter_fourcc(*'MP4V')
-    
-    out = cv2.VideoWriter('top_left_logo_30fps.mp4',fourcc, 30, (frame_width,frame_height))
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
+    out = cv2.VideoWriter('top_left_logo_30fps.mp4',fourcc, 30, (image.shape[1],image.shape[0]))
     
     # Read specified logo
-    foreground_img_float = cv2.imread(args.logo_dir,-1).astype(float)
-    # Create logo frame for blending process
-    foreground_img_float = logo_frame(image, foreground_img_float, args.logo_loc)
- 
+    foreground_img_float = cv2.imread(args.logo_dir,-1).astype(np.float32)
 
-    while index != total_images:
+
+    # Create logo frame for blending process
+    logo_embedded_frame = logo_frame(image, foreground_img_float, args.logo_loc)
+    logo_embedded_frame_2 = logo_frame(image, foreground_img_float, "TOP_LEFT")
+
+
+    #cv2.imwrite('top_left.png',foreground_img_float_2)
+    while index != 10:
         image_data = Data(args.root_dir, image_list[index])
         print(image_data.image_path)
         background_img_float = process_image(image_data)
-        blended_img_uint8 = blend(background_img_float, foreground_img_float, add_alpha_layer)
+        blended_img = blend(background_img_float, logo_embedded_frame)
+        blended_img_2 = blend(blended_img, logo_embedded_frame_2)
 
-        out.write(blended_img_uint8[:,:,:3]) # Write frames with 3 layers [:,:,:3] --> (1080, 1920, 3) BGR format
+        out.write(blended_img_2[:,:,:3].astype(np.uint8)) # Write frames with 3 layers [:,:,:3] --> (1080, 1920, 3) BGR format
         index = index + 1
 
     out.release()

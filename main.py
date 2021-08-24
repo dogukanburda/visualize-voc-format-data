@@ -82,7 +82,9 @@ def logo_frame(background_image, foreground_image, location = "TOP_LEFT"):
     #     foreground_image = cv2.copyMakeBorder(src = foreground_image, top=x-15, bottom=15, left=y-10, right=10, borderType=cv2.BORDER_CONSTANT,value=[0,0,0])
 
     # Resize logo to 1/9th of height and 1/16th of length
-    new_x, new_y = background_image.shape[1]//9,background_image.shape[0]//16
+    #new_x, new_y = background_image.shape[1]//9,background_image.shape[0]//16
+    new_x, new_y = background_image.shape[1]//10, background_image.shape[1]//10*foreground_image.shape[0]//foreground_image.shape[1]
+
     foreground_image = cv2.resize(foreground_image, (new_x, new_y), interpolation = cv2.INTER_AREA)
 
     # Take differences of each indices

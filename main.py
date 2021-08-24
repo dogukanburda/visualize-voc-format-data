@@ -10,6 +10,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--root_dir", type=str, default="./task_pressmachineoperator")
 parser.add_argument("--type", type=str, default="default", help="train|val|trainval|test")
 parser.add_argument("--logo_dir", type=str, default="./stroma_logo.png")
+parser.add_argument("--logo_loc", type=str, default="TOP_LEFT", help="TOP_LEFT|TOP_RIGHT|BOTTOM_LEFT|BOTTOM_RIGHT")
 parser.add_argument("--random_seed", type=int, default=100)
 parser.add_argument("--save_images", type=bool, default=True)
 parser.add_argument("--save_dir", type=str, default="output")
@@ -65,11 +66,20 @@ def process_image(image_data):
 
 
 
-def logo_resize(background_image, foreground_image):
+def logo_frame(background_image, foreground_image, location = "TOP_LEFT"):
     """
     Returns a matrix of same size with background image with logo on the top left corner
-    TODO: Add other location options
+    usage:
+    python main.py --logo_loc "TOP_RIGHT"
+
+    
+    TODO: Add CENTER option with 0.5 opacity and big logo
     """
+    # if location == CENTER:
+    #     new_x, new_y = background_image.shape[1]//2,background_image.shape[0]//3
+    #     foreground_image = cv2.resize(foreground_image, (new_x, new_y), interpolation = cv2.INTER_AREA)
+    #     x, y, z = tuple(map(lambda x, y: x - y, background_image.shape, foreground_image.shape))
+    #     foreground_image = cv2.copyMakeBorder(src = foreground_image, top=x-15, bottom=15, left=y-10, right=10, borderType=cv2.BORDER_CONSTANT,value=[0,0,0])
 
     # Resize logo to 1/9th of height and 1/16th of length
     new_x, new_y = background_image.shape[1]//9,background_image.shape[0]//16
@@ -77,8 +87,16 @@ def logo_resize(background_image, foreground_image):
 
     # Take differences of each indices
     x, y, z = tuple(map(lambda x, y: x - y, background_image.shape, foreground_image.shape))
-    # Expand the logo matrix to match background resolution
-    foreground_image = cv2.copyMakeBorder(src = foreground_image, top=15, bottom=x-15, left=10, right=y-10, borderType=cv2.BORDER_CONSTANT,value=[0,0,0])
+    
+    if location == "TOP_LEFT":
+        # Expand the logo matrix to match background resolution
+        foreground_image = cv2.copyMakeBorder(src = foreground_image, top=15, bottom=x-15, left=10, right=y-10, borderType=cv2.BORDER_CONSTANT,value=[0,0,0])
+    elif location == "TOP_RIGHT":
+        foreground_image = cv2.copyMakeBorder(src = foreground_image, top=15, bottom=x-15, left=y-10, right=10, borderType=cv2.BORDER_CONSTANT,value=[0,0,0])        
+    elif location == "BOTTOM_LEFT":
+        foreground_image = cv2.copyMakeBorder(src = foreground_image, top=x-15, bottom=15, left=10, right=y-10, borderType=cv2.BORDER_CONSTANT,value=[0,0,0])
+    elif location == "BOTTOM_RIGHT":
+        foreground_image = cv2.copyMakeBorder(src = foreground_image, top=x-15, bottom=15, left=y-10, right=10, borderType=cv2.BORDER_CONSTANT,value=[0,0,0])
     return foreground_image
 
 def blend(background_image, foreground_image, add_alpha_layer = True):
@@ -116,7 +134,7 @@ def main(args):
     # Read specified logo
     foreground_img_float = cv2.imread(args.logo_dir,-1).astype(float)
     # Create logo frame for blending process
-    foreground_img_float = logo_resize(image, foreground_img_float)
+    foreground_img_float = logo_frame(image, foreground_img_float, args.logo_loc)
  
 
     while index != total_images:

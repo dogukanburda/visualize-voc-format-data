@@ -5,6 +5,8 @@ from data import Data
 import cv2
 import blend_modes
 import numpy as np
+import time
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--root_dir", type=str, default="./task_pressmachineoperator")
@@ -68,12 +70,11 @@ def process_image(image_data):
 
 
 
-def logo_frame(background_image, foreground_image, location = "TOP_LEFT"):
+def resize_logo(background_image, foreground_image):
     """
-    Returns a matrix of same size with background image with logo on the top left corner
+    Returns a matrix of the logo resized with respect to background image
     usage:
     python main.py --logo_loc "TOP_RIGHT"
-
     
     TODO: Add CENTER option with 0.5 opacity and big logo
     """
@@ -83,39 +84,38 @@ def logo_frame(background_image, foreground_image, location = "TOP_LEFT"):
     #     x, y, z = tuple(map(lambda x, y: x - y, background_image.shape, foreground_image.shape))
     #     foreground_image = cv2.copyMakeBorder(src = foreground_image, top=x-15, bottom=15, left=y-10, right=10, borderType=cv2.BORDER_CONSTANT,value=[0,0,0])
 
-    # Resize logo to 1/9th of height and 1/16th of length
-    #new_x, new_y = background_image.shape[1]//9,background_image.shape[0]//16
+    # Resize logo
     new_x, new_y = background_image.shape[1]//10, background_image.shape[1]//10*foreground_image.shape[0]//foreground_image.shape[1]
-
     foreground_image = cv2.resize(foreground_image, (new_x, new_y), interpolation = cv2.INTER_AREA)
-
-    # Take differences of each indices
-    x, y, z = tuple(map(lambda x, y: x - y, background_image.shape, foreground_image.shape))
-    
-    if location == "TOP_LEFT":
-        # Expand the logo matrix to match background resolution
-        foreground_image = cv2.copyMakeBorder(src = foreground_image, top=15, bottom=x-15, left=10, right=y-10, borderType=cv2.BORDER_CONSTANT,value=[0,0,0])
-    elif location == "TOP_RIGHT":
-        foreground_image = cv2.copyMakeBorder(src = foreground_image, top=15, bottom=x-15, left=y-10, right=10, borderType=cv2.BORDER_CONSTANT,value=[0,0,0])        
-    elif location == "BOTTOM_LEFT":
-        foreground_image = cv2.copyMakeBorder(src = foreground_image, top=x-15, bottom=15, left=10, right=y-10, borderType=cv2.BORDER_CONSTANT,value=[0,0,0])
-    elif location == "BOTTOM_RIGHT":
-        foreground_image = cv2.copyMakeBorder(src = foreground_image, top=x-15, bottom=15, left=y-10, right=10, borderType=cv2.BORDER_CONSTANT,value=[0,0,0])
     return foreground_image
 
-def blend(background_image, foreground_image):
+def blend(background_image, foreground_image, location = "TOP_LEFT"):
+    """
+    Overlays the given foreground image to the background image with 100% opacity. Only operates calculations on the specified location (Region of Interest).
+    """
+    # Adds 4.th Alpha layer to the background image if there is not.
     global alpha
     if alpha.size == 0:
         alpha = np.full((background_image.shape[0],background_image.shape[1]),255.0) # Fully opaque 4.th layer (alpha) for BGR frames --> BGRA
-
     if background_image.shape[2] != 4:
         background_image = np.dstack((background_image,alpha)) # Add the opacity layer to background image
                                                                    # background_image.shape --> (1080, 1920, 4)
-    # Blend images with 'normal' mode 
-    # Opacity 1.0 and matrix dtype as uint8
-    background_image = blend_modes.normal(background_image, foreground_image, 1.0)
-
-    # Return BGRA format (x,y,4)
+    
+    # Location indices of the logo
+    x_loc, y_loc = foreground_image.shape[:2]
+        
+    if location == "TOP_LEFT":
+        blended = blend_modes.normal(background_image[15:x_loc+15,15:y_loc+15,:], foreground_image, 1.0)
+        background_image[15:x_loc+15,15:y_loc+15,:] = blended
+    elif location == "TOP_RIGHT":
+        blended = blend_modes.normal(background_image[15:x_loc+15,-(15+y_loc):-15,:], foreground_image, 1.0)
+        background_image[15:x_loc+15,-(15+y_loc):-15,:] = blended
+    elif location == "BOTTOM_LEFT":
+        blended = blend_modes.normal(background_image[-(15+x_loc):-15,15:y_loc+15,:], foreground_image, 1.0)
+        background_image[-(15+x_loc):-15,15:y_loc+15,:]= blended
+    elif location == "BOTTOM_RIGHT":
+        blended = blend_modes.normal(background_image[-(15+x_loc):-15,-(15+y_loc):-15,:], foreground_image, 1.0)
+        background_image[-(15+x_loc):-15,-(15+y_loc):-15,:] = blended
     return background_image
 
 def main(args):
@@ -133,24 +133,25 @@ def main(args):
     foreground_img_float = cv2.imread(args.logo_dir,-1).astype(np.float32)
 
 
-    # Create logo frame for blending process
-    logo_embedded_frame = logo_frame(image, foreground_img_float, args.logo_loc)
-    logo_embedded_frame_2 = logo_frame(image, foreground_img_float, "TOP_LEFT")
+    # Resize logo with respect to background image
+    resized_logo = resize_logo(image, foreground_img_float)
 
 
-    #cv2.imwrite('top_left.png',foreground_img_float_2)
-    while index != 10:
+    while index != total_images:
         image_data = Data(args.root_dir, image_list[index])
         print(image_data.image_path)
         background_img_float = process_image(image_data)
-        blended_img = blend(background_img_float, logo_embedded_frame)
-        blended_img_2 = blend(blended_img, logo_embedded_frame_2)
+        blended_img = blend(background_img_float, resized_logo, args.logo_loc)
 
-        out.write(blended_img_2[:,:,:3].astype(np.uint8)) # Write frames with 3 layers [:,:,:3] --> (1080, 1920, 3) BGR format
+        out.write(blended_img[:,:,:3].astype(np.uint8)) # Write frames with 3 layers [:,:,:3] --> (1080, 1920, 3) BGR format
+                                                        # Convert frame to OpenCV native display format
         index = index + 1
 
     out.release()
 
 
 if __name__ == '__main__':
+    startTime = time.time()
     main(args)
+    print ('The script took {0} second !'.format(time.time() - startTime))
+

@@ -1,0 +1,15 @@
+name: voc
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.8.*
+  - pip:                            # Packages installed from PyPI
+    - requests==2.21.0
+    - beautifulsoup4==4.9.1
+    - install==1.3.3
+    - lxml==4.5.2
+    - numpy==1.19.1
+    - opencv-python==4.4.0.40
+    - soupsieve==2.0.1
+    - blend_modes==2.1.0
